@@ -1,2 +1,2 @@
-emcc -s WASM=1 -s NO_EXIT_RUNTIME=1 -sIMPORTED_MEMORY -sALLOW_MEMORY_GROWTH -s "EXPORTED_RUNTIME_METHODS=['ccall']" -s "EXPORTED_FUNCTIONS=['_malloc']" -I src src\decoder.c src\encoder.c src\ltc.c src\timecode.c src\js_bindings src\js_bindings\ltc_frame_js.cpp src\js_bindings\decoder_js.cpp -lembind -o ltc_wasm.html
+emcc -s WASM=1 -s NO_EXIT_RUNTIME=1 -sIMPORTED_MEMORY -sALLOW_MEMORY_GROWTH -s "EXPORTED_RUNTIME_METHODS=['ccall']" -s "EXPORTED_FUNCTIONS=['_malloc']" -I src src\decoder.c src\encoder.c src\ltc.c src\timecode.c src\js_bindings\ltc_frame_js.cpp src\js_bindings\decoder_js.cpp src\js_bindings\encoder_js.cpp src\js_bindings\timecode_js.cpp -lembind -o ltc_wasm.html
 pause

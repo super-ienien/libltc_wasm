@@ -1,10 +1,13 @@
 #ifndef LTC_ENCODER_JS
 #define LTC_ENCODER_JS 1
 
+#include <emscripten/val.h>
 #include "encoder.h"
 #include "ltc_frame_js.h"
 #include <cstdint>
 #include "ltc.h"
+
+using namespace emscripten;
 
 class LTCEncoderJS {
     private:
@@ -31,8 +34,9 @@ class LTCEncoderJS {
     int reinit(double sample_rate, double fps, LTC_TV_STANDARD standard, int flags );
     void reset();
     void setUserBits(unsigned long data);
+    int getBufferSize();
     int setBufferSize(double sample_rate, double fps);
-    int copyBuffer(double sample_rate, double fps);
+    val getBuffer(bool flush);
 };
 
 #endif

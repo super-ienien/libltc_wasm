@@ -44,7 +44,7 @@ EMSCRIPTEN_BINDINGS(decoder_js) {
     .constructor<int>()
     .constructor<int, int>()
     .function("write", &LTCDecoderJS::write, allow_raw_pointers())
-    .function("read", &LTCDecoderJS::read, return_value_policy::take_ownership());
-    .function("flushQueue", &LTCDecoderJS::flushQueue);
+    .function("read", &LTCDecoderJS::read, return_value_policy::take_ownership())
+    .function("flushQueue", &LTCDecoderJS::flushQueue)
     .function("queueLength", &LTCDecoderJS::queueLength);
 };

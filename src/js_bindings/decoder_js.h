@@ -10,8 +10,8 @@ class LTCDecoderJS {
     LTCDecoder* _decoder;
 
     public:
-    DecoderJS(int apv = 1920, int queue_len = 32);
-    ~DecoderJS();
+    LTCDecoderJS(int apv = 1920, int queue_len = 32);
+    ~LTCDecoderJS();
     void write(uintptr_t buf_ptr, size_t size);
     LTCFrameJS read();
     void flushQueue();

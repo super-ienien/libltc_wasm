@@ -4,6 +4,7 @@
 #include "ltc_frame_js.h"
 #include <emscripten/bind.h>
 #include <cstdint>
+#include <emscripten/val.h>
 
 using namespace emscripten;
 
@@ -17,15 +18,15 @@ LTCEncoderJS::~LTCEncoderJS() {
 }
 
 int LTCEncoderJS::decrementTimecode() {
-    return ltc_encoder_dec_timecode(this->_decoder);
+    return ltc_encoder_dec_timecode(this->_encoder);
 }
 
 int LTCEncoderJS::incrementTimecode() {
-    return ltc_encoder_inc_timecode(this->_decoder);
+    return ltc_encoder_inc_timecode(this->_encoder);
 }
 
 int LTCEncoderJS::getBufferSize() {
-    return ltc_encoder_get_buffersize(this->_decoder);
+    return ltc_encoder_get_buffersize(this->_encoder);
 }
 
 int LTCEncoderJS::encodeByte(int byte, double speed) {
@@ -53,7 +54,7 @@ void LTCEncoderJS::setFilter(double rise_time) {
 }
 
 SMPTETimecode LTCEncoderJS::getTimecode() {
-    ltc_encoder_get_timecode(this->_encoder, this->&tc);
+    ltc_encoder_get_timecode(this->_encoder, &this->tc);
     return this->tc;
 }
 
@@ -82,11 +83,16 @@ void LTCEncoderJS::setUserBits(unsigned long data) {
 }
 
 int LTCEncoderJS::setBufferSize(double sample_rate, double fps) {
-    return ltc_encoder_set_buffer_size(this->_encoder, sample_rate, fps);
+    return ltc_encoder_set_buffersize(this->_encoder, sample_rate, fps);
 }
 
-int LTCEncoderJS::copyBuffer(ltcsnd_sample_t **buf, int flush) {
-    return ltc_encoder_copy_buffer(this->_encoder, buf, flush);
+val LTCEncoderJS::getBuffer(bool flush) {
+    ltcsnd_sample_t *buf;
+    int len = ltc_encoder_copy_buffer(this->_encoder, buf);
+    if (flush) {
+        ltc_encoder_buffer_flush(this->_encoder);
+    }
+    return val(typed_memory_view(len, buf));
 }
 
 EMSCRIPTEN_BINDINGS(encoder_js) {
@@ -109,6 +115,6 @@ EMSCRIPTEN_BINDINGS(encoder_js) {
     .function("reset", &LTCEncoderJS::reset)
     .function("setUserBits", &LTCEncoderJS::setUserBits)
     .function("setBufferSize", &LTCEncoderJS::setBufferSize)
-    .function("copyBuffer", &LTCEncoderJS::copyBuffer)
+    .function("getBuffer", &LTCEncoderJS::getBuffer)
     ;
 };
