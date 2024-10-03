@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <script src="libltc.js"></script>
+    <script src="ltc.js"></script>
+    <script type="text/javascript">
+        async function run() {
+          await initLibLTC();
+          const audioCtx = new OfflineAudioContext({numberOfChannels: 1, length: 48000 * 60, sampleRate: 48000});
+          const audioBuffer = await loadAudio(audioCtx);
+          const decoder = new libltc.DecoderJS();
+          console.log(decoder);
+          const sampleBuffer = new Float32Array(48000 * 120);
+          audioBuffer.copyFromChannel(sampleBuffer, 0);
+          decoder.write(copyBufferToLibLtMemory(sampleBuffer), sampleBuffer.length);
+          // decoder.write(copyBufferToLibLtMemory(sampleBuffer), sampleBuffer.length, 0);
+          let isValid = true;
+          while (isValid) {
+            const frame = decoder.read();
+            console.log (`${frame.hours_tens}${frame.hours_units}:${frame.mins_tens}${frame.mins_units}:${frame.secs_tens}${frame.secs_units}:${frame.frame_tens}${frame.frame_units}`);
+            isValid = frame.is_valid;
+            frame.delete();
+          }
+        }
+
+        function zeroPad(num) {
+          if (num < 10) {
+            return '0' + num;
+          }
+          return num;
+        }
+
+        async function loadAudio(ctx) {
+          try {
+            // Load an audio file
+            const response = await fetch("LTC_01000000_10mins_30fps_48000x8.wav");
+            // Decode it
+            return ctx.decodeAudioData(await response.arrayBuffer());
+          } catch (err) {
+            console.error(`Unable to fetch the audio file. Error: ${err.message}`);
+          }
+        }
+
+
+        function copyBufferToLibLtMemory(buffer) {
+          const typedArray = new Float32Array(buffer.length);
+          for (let i=0; i<buffer.length; i++) {
+            typedArray[i] = buffer[i];
+          }
+          const pointer = libltc._malloc(typedArray.length * typedArray.BYTES_PER_ELEMENT);
+          libltc.HEAPF32.set(typedArray, pointer >> 2)
+          return pointer;
+        }
+
+        function copyBufferFromLibLtcMemory(pointer, length) {
+          const arrayData = []
+          for (let i= 0; i < length + 1; i++) {
+            arrayData.push(libltc.HEAPF32[pointer/Float32Array.BYTES_PER_ELEMENT+i])
+          }
+          new Float32Array()
+        }
+        run();
+    </script>
+</body>
+</html>

@@ -16,7 +16,7 @@ echo "commit pending changes.."
 git commit -a 
 
 # to bump the version number
-# - src/ltc.h (this is the MAIN VERSION used by configure) 
+# - src/ltc_decoder.h (this is the MAIN VERSION used by configure)
 #   and re-run autogen.sh to pick it up.
 # - Changelog 
 # - debian/changelog (for the debian package)
@@ -27,7 +27,7 @@ read -n1 a
 echo
 
 if test "$a" != "n" -a "$a" != "N"; then
-	${EDITOR} src/ltc.h debian/changelog ChangeLog
+	${EDITOR} src/ltcwasm.h debian/changelog ChangeLog
 	sh autogen.sh
 fi
 
@@ -51,7 +51,7 @@ echo "re-creating man-pages and documentation with new version-number.."
 make dox 
 
 echo "creating git-commit of updated doc & version number"
-git commit -m "finalize changelog v${VERSION}" src/ltc.h ChangeLog debian/changelog doc/man/man3/ltc.h.3
+git commit -m "finalize changelog v${VERSION}" src/ltcwasm.h ChangeLog debian/changelog doc/man/man3/ltcwasm.h.3
 
 cd doc/html
 git add *.*
