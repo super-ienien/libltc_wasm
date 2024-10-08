@@ -43,7 +43,6 @@ void LTCFrameJS::fill(LTCFrameExt* frame) {
     this->volume = frame->volume;
     this->reverse = frame->reverse;
     this->is_valid = true;
-    printf("frame filled\n");
 };
 
 EMSCRIPTEN_BINDINGS(ltc_frame_js) {
@@ -65,7 +64,8 @@ EMSCRIPTEN_BINDINGS(ltc_frame_js) {
     .property("user6", &LTCFrameJS::user6)
     .property("binary_group_flag_bit0", &LTCFrameJS::binary_group_flag_bit0)
     .property("mins_tens", &LTCFrameJS::mins_tens)
-    .property("hours_units", &LTCFrameJS::mins_units)
+    .property("user7", &LTCFrameJS::user7)
+    .property("hours_units", &LTCFrameJS::hours_units)
     .property("user8", &LTCFrameJS::user8)
     .property("binary_group_flag_bit2", &LTCFrameJS::binary_group_flag_bit2)
     .property("binary_group_flag_bit1", &LTCFrameJS::binary_group_flag_bit1)

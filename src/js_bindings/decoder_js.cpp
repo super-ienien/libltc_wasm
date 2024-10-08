@@ -15,10 +15,16 @@ LTCDecoderJS::~LTCDecoderJS() {
     this->_decoder = nullptr;
 }
 
-void LTCDecoderJS::write(uintptr_t buf_ptr, size_t size) {
-    printf("size %ld\n", size);
-    float* buf = reinterpret_cast<float*>(buf_ptr);
-    ltc_decoder_write_float(this->_decoder, buf, size, 0);
+void LTCDecoderJS::write(SoundSampleJS sample) {
+//     printf("size %ld\n", sample.size);
+    float* buf = reinterpret_cast<float*>(sample.buf_ptr);
+    ltc_decoder_write_float(this->_decoder, buf, sample.size, 0);
+}
+
+void LTCDecoderJS::writeBytes(SoundSampleJS sample) {
+//     printf("size %ld\n", sample.size);
+    ltcsnd_sample_t* buf = reinterpret_cast<ltcsnd_sample_t*>(sample.buf_ptr);
+    ltc_decoder_write(this->_decoder, buf, sample.size, 0);
 }
 
 LTCFrameJS LTCDecoderJS::read() {

@@ -5,65 +5,136 @@
     <title>Title</title>
 </head>
 <body>
+    <input type="number" id="ipthours" min="0" max="23" />
+    <input type="number" id="iptmins" min="0" max="59" />
+    <input type="number" id="iptsecs" min="0" max="59" />
+    <input type="number" id="iptframes" min="0" max="25" />
+
+    <button id="btnsettc" data-playing="false" role="switch" aria-checked="false">
+        <span>Set TC</span>
+    </button>
+
+    <button id="btntoggle" data-playing="false" role="switch" aria-checked="false">
+        <span>Start / Stop</span>
+    </button>
+
+<!--    <audio src="LTC_01000000_10mins_30fps_48000x8.wav" controls></audio>-->
+    <h1 id="tc1"></h1>
+    <h1 id="tc2"></h1>
     <script src="libltc.js"></script>
     <script src="ltc.js"></script>
     <script type="text/javascript">
-        async function run() {
-          await initLibLTC();
-          const audioCtx = new OfflineAudioContext({numberOfChannels: 1, length: 48000 * 60, sampleRate: 48000});
-          const audioBuffer = await loadAudio(audioCtx);
-          const decoder = new libltc.DecoderJS();
-          console.log(decoder);
-          const sampleBuffer = new Float32Array(48000 * 120);
-          audioBuffer.copyFromChannel(sampleBuffer, 0);
-          decoder.write(copyBufferToLibLtMemory(sampleBuffer), sampleBuffer.length);
-          // decoder.write(copyBufferToLibLtMemory(sampleBuffer), sampleBuffer.length, 0);
-          let isValid = true;
-          while (isValid) {
-            const frame = decoder.read();
-            console.log (`${frame.hours_tens}${frame.hours_units}:${frame.mins_tens}${frame.mins_units}:${frame.secs_tens}${frame.secs_units}:${frame.frame_tens}${frame.frame_units}`);
-            isValid = frame.is_valid;
-            frame.delete();
-          }
-        }
 
-        function zeroPad(num) {
-          if (num < 10) {
-            return '0' + num;
-          }
-          return num;
-        }
+      async function setup() {
+        const hoursIpt = document.getElementById('ipthours');
+        const minsIpt = document.getElementById('iptmins');
+        const secsIpt = document.getElementById('iptsecs');
+        const framesIpt = document.getElementById('iptframes');
+        const tc1El = document.getElementById('tc1');
+        const tc2El = document.getElementById('tc2');
+        const setTcBtn = document.getElementById('btnsettc');
+        const toggleBtn = document.getElementById('btntoggle');
 
-        async function loadAudio(ctx) {
-          try {
-            // Load an audio file
-            const response = await fetch("LTC_01000000_10mins_30fps_48000x8.wav");
-            // Decode it
-            return ctx.decodeAudioData(await response.arrayBuffer());
-          } catch (err) {
-            console.error(`Unable to fetch the audio file. Error: ${err.message}`);
+        hoursIpt.value = minsIpt.value = secsIpt.value = framesIpt.value = 0;
+
+        let isStarted = false;
+        let fps = 30;
+        let latency = 4
+
+        await initLibLTC();
+
+        console.log(await navigator.mediaDevices.enumerateDevices());
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+
+        const audioCtx = new AudioContext();
+        const audioCtx2 = new AudioContext();
+        const source = audioCtx2.createMediaStreamSource(stream);
+        const encoder = new LTCEncoder(audioCtx, fps, 2);
+        const decoder = new LTCDecoder(audioCtx2, source);
+
+        encoder.connect(decoder.destination);
+
+        decoder.ontimecode = function (frame) {
+          tc1El.innerText = `${frame.hoursTens}${frame.hoursUnits}:${frame.minsTens}${frame.minsUnits}:${frame.secsTens}${frame.secsUnits}:${frame.frameTens}${frame.frameUnits}`;
+        };
+
+        setTcBtn.addEventListener('click', function () {
+          encoder.setTimecode({
+            hours: Number(hoursIpt.value),
+            mins: Number(minsIpt.value),
+            secs: Number(secsIpt.value),
+            frames: Number(framesIpt.value)
+          });
+        });
+
+        toggleBtn.addEventListener('click', function () {
+          if (isStarted) {
+            isStarted = false;
+            // encoder.stop();
+            decoder.stop();
+          } else {
+            // encoder.start();
+            decoder.start();
+            isStarted = true;
           }
-        }
+        });
+      }
+
+    function zeroPad(num) {
+      if (num < 10) {
+        return '0' + num;
+      }
+      return num;
+    }
+
+    async function loadAudio(ctx) {
+      try {
+        // Load an audio file
+        const response = await fetch("LTC_01000000_10mins_30fps_48000x8.wav");
+        // Decode it
+        return ctx.decodeAudioData(await response.arrayBuffer());
+      } catch (err) {
+        console.error(`Unable to fetch the audio file. Error: ${err.message}`);
+      }
+    }
 
 
-        function copyBufferToLibLtMemory(buffer) {
-          const typedArray = new Float32Array(buffer.length);
-          for (let i=0; i<buffer.length; i++) {
-            typedArray[i] = buffer[i];
-          }
-          const pointer = libltc._malloc(typedArray.length * typedArray.BYTES_PER_ELEMENT);
-          libltc.HEAPF32.set(typedArray, pointer >> 2)
-          return pointer;
-        }
+    async function copyBlobToLibLtcMemory(blob) {
+      const arr = await blob.bytes();
+      const pointer = libltc._malloc(arr.length * arr.BYTES_PER_ELEMENT);
+      libltc.HEAPU8.set(typedArray, pointer >> 2)
+      return {buf_ptr: pointer, size: arr.length};
+    }
+    function copyBufferToLibLtcMemory(buffer, debug) {
+      // const typedArray = new Float32Array(buffer.length);
+      // for (let i=0; i<buffer.length; i++) {
+      //   typedArray[i] = buffer[i];
+      // }
+      const typedArray = buffer;
+      const pointer = libltc._malloc(typedArray.length * typedArray.BYTES_PER_ELEMENT);
+      libltc.HEAPF32.set(typedArray, pointer >> 2)
+      // if (!debug) console.log('encoderBuffer', typedArray);
+      return {buf_ptr: pointer, size: typedArray.length};
+    }
 
-        function copyBufferFromLibLtcMemory(pointer, length) {
-          const arrayData = []
-          for (let i= 0; i < length + 1; i++) {
-            arrayData.push(libltc.HEAPF32[pointer/Float32Array.BYTES_PER_ELEMENT+i])
-          }
-          new Float32Array()
-        }
-        run();
+    function copyBufferFromLibLtcMemory(sample) {
+        // console.log(sample);
+        return libltc.HEAPU8.subarray(sample.buf_ptr, sample.buf_ptr + sample.size);
+    }
+
+  function convertUInt8toFloat32(incomingData) { // incoming data is a UInt8Array
+    var i, l = incomingData.length;
+    var outputData = new Float32Array(incomingData.length);
+    for (i = 0; i < l; i++) {
+      outputData[i] = (incomingData[i] - 128) / 128.0;
+    }
+    return outputData;
+  }
+
+    setup();
     </script>
 </body>
 </html>

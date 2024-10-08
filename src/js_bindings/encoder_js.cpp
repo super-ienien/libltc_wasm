@@ -1,15 +1,17 @@
 #include "encoder_js.h"
 #include "decoder.h"
+#include "common_js.h"
 #include "ltc.h"
 #include "ltc_frame_js.h"
+#include "timecode_js.h"
 #include <emscripten/bind.h>
 #include <cstdint>
 #include <emscripten/val.h>
 
 using namespace emscripten;
 
-LTCEncoderJS::LTCEncoderJS(double sample_rate, double fps, LTC_TV_STANDARD standard, int flags) {
-    this->_encoder = ltc_encoder_create(sample_rate, fps, standard, flags);
+LTCEncoderJS::LTCEncoderJS(double sample_rate, double fps, int standard, int flags) {
+    this->_encoder = ltc_encoder_create(sample_rate, fps, standardJsToEnum(standard), flags);
 }
 
 LTCEncoderJS::~LTCEncoderJS() {
@@ -53,13 +55,14 @@ void LTCEncoderJS::setFilter(double rise_time) {
     return ltc_encoder_set_filter(this->_encoder, rise_time);
 }
 
-SMPTETimecode LTCEncoderJS::getTimecode() {
+SMPTETimecodeJS* LTCEncoderJS::getTimecode() {
     ltc_encoder_get_timecode(this->_encoder, &this->tc);
-    return this->tc;
+    return new SMPTETimecodeJS(this->tc);
 }
 
-void LTCEncoderJS::setTimecode(SMPTETimecode timecode) {
-    ltc_encoder_set_timecode(this->_encoder, &timecode);
+void LTCEncoderJS::setTimecode(SMPTETimecodeJS timecode) {
+    SMPTETimecode tc = timecode.toC();
+    ltc_encoder_set_timecode(this->_encoder, &tc);
 }
 
 double LTCEncoderJS::getVolume() {
@@ -70,8 +73,8 @@ int LTCEncoderJS::setVolume(double dBFS) {
     return ltc_encoder_set_volume(this->_encoder, dBFS);
 }
 
-int LTCEncoderJS::reinit(double sample_rate, double fps, LTC_TV_STANDARD standard, int flags ) {
-    return ltc_encoder_reinit(this->_encoder, sample_rate, fps, standard, flags);
+int LTCEncoderJS::reinit(double sample_rate, double fps, int standard, int flags ) {
+    return ltc_encoder_reinit(this->_encoder, sample_rate, fps, standardJsToEnum(standard), flags);
 }
 
 void LTCEncoderJS::reset() {
@@ -86,18 +89,22 @@ int LTCEncoderJS::setBufferSize(double sample_rate, double fps) {
     return ltc_encoder_set_buffersize(this->_encoder, sample_rate, fps);
 }
 
-val LTCEncoderJS::getBuffer(bool flush) {
+SoundSampleJS LTCEncoderJS::getBuffer() {
     ltcsnd_sample_t *buf;
     int len = ltc_encoder_copy_buffer(this->_encoder, buf);
-    if (flush) {
-        ltc_encoder_buffer_flush(this->_encoder);
-    }
-    return val(typed_memory_view(len, buf));
+    SoundSampleJS sample;
+    sample.buf_ptr = (uintptr_t)(void*)buf;
+    sample.size = len;
+    return sample;
+}
+
+void LTCEncoderJS::flushBuffer() {
+    ltc_encoder_buffer_flush(this->_encoder);
 }
 
 EMSCRIPTEN_BINDINGS(encoder_js) {
   class_<LTCEncoderJS>("LTCEncoderJS")
-    .constructor<double, double, LTC_TV_STANDARD, int>()
+    .constructor<double, double, int, int>()
     .function("decrementTimecode", &LTCEncoderJS::decrementTimecode)
     .function("incrementTimecode", &LTCEncoderJS::incrementTimecode)
     .function("getBufferSize", &LTCEncoderJS::getBufferSize)
@@ -107,7 +114,7 @@ EMSCRIPTEN_BINDINGS(encoder_js) {
     .function("endEncode", &LTCEncoderJS::endEncode)
     .function("getFilter", &LTCEncoderJS::getFilter)
     .function("setFilter", &LTCEncoderJS::setFilter)
-    .function("getTimecode", &LTCEncoderJS::getTimecode)
+    .function("getTimecode", &LTCEncoderJS::getTimecode, return_value_policy::take_ownership())
     .function("setTimecode", &LTCEncoderJS::setTimecode)
     .function("getVolume", &LTCEncoderJS::getVolume)
     .function("setVolume", &LTCEncoderJS::setVolume)
@@ -116,5 +123,6 @@ EMSCRIPTEN_BINDINGS(encoder_js) {
     .function("setUserBits", &LTCEncoderJS::setUserBits)
     .function("setBufferSize", &LTCEncoderJS::setBufferSize)
     .function("getBuffer", &LTCEncoderJS::getBuffer)
+    .function("flushBuffer", &LTCEncoderJS::flushBuffer)
     ;
 };

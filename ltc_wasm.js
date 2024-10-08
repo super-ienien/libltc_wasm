@@ -1,3 +1,11 @@
+
+var LibLTC = (() => {
+  var _scriptName = typeof document != 'undefined' ? document.currentScript?.src : undefined;
+  if (typeof __filename != 'undefined') _scriptName = _scriptName || __filename;
+  return (
+function(moduleArg = {}) {
+  var moduleRtn;
+
 // include: shell.js
 // The Module object: Our interface to the outside world. We import
 // and export values on it. There are various ways Module can be used:
@@ -12,7 +20,22 @@
 // after the generated code, you will need to define   var Module = {};
 // before the code. Then that object will be used in the code, and you
 // can continue to use Module afterwards as well.
-var Module = typeof Module != 'undefined' ? Module : {};
+var Module = moduleArg;
+
+// Set up the promise that indicates the Module is initialized
+var readyPromiseResolve, readyPromiseReject;
+var readyPromise = new Promise((resolve, reject) => {
+  readyPromiseResolve = resolve;
+  readyPromiseReject = reject;
+});
+["_malloc","___indirect_function_table","onRuntimeInitialized"].forEach((prop) => {
+  if (!Object.getOwnPropertyDescriptor(readyPromise, prop)) {
+    Object.defineProperty(readyPromise, prop, {
+      get: () => abort('You are getting ' + prop + ' on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js'),
+      set: () => abort('You are setting ' + prop + ' on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js'),
+    });
+  }
+});
 
 // Determine the runtime environment we are in. You can customize this by
 // setting the ENVIRONMENT setting at compile time (see settings.js).
@@ -111,9 +134,7 @@ readAsync = (filename, binary = true) => {
 
   arguments_ = process.argv.slice(2);
 
-  if (typeof module != 'undefined') {
-    module['exports'] = Module;
-  }
+  // MODULARIZE will export the module in the proper place outside, we don't need to export here
 
   quit_ = (status, toThrow) => {
     process.exitCode = status;
@@ -135,6 +156,11 @@ if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
     scriptDirectory = self.location.href;
   } else if (typeof document != 'undefined' && document.currentScript) { // web
     scriptDirectory = document.currentScript.src;
+  }
+  // When MODULARIZE, this JS may be executed later, after document.currentScript
+  // is gone, so we saved it, and we use it here instead of any other info.
+  if (_scriptName) {
+    scriptDirectory = _scriptName;
   }
   // blob urls look like blob:http://site.com/etc/etc and we cannot infer anything from them.
   // otherwise, slice off the final part of the url to find the script directory.
@@ -573,6 +599,7 @@ function abort(what) {
   /** @suppress {checkTypes} */
   var e = new WebAssembly.RuntimeError(what);
 
+  readyPromiseReject(e);
   // Throw the error whether or not MODULARIZE is set because abort is used
   // in code paths apart from instantiation where an exception is expected
   // to be thrown when abort is called.
@@ -774,13 +801,15 @@ function createWasm() {
       return Module['instantiateWasm'](info, receiveInstance);
     } catch(e) {
       err(`Module.instantiateWasm callback failed with error: ${e}`);
-        return false;
+        // If instantiation fails, reject the module ready promise.
+        readyPromiseReject(e);
     }
   }
 
   wasmBinaryFile ??= findWasmBinary();
 
-  instantiateAsync(wasmBinary, wasmBinaryFile, info, receiveInstantiationResult);
+  // If instantiation fails, reject the module ready promise.
+  instantiateAsync(wasmBinary, wasmBinaryFile, info, receiveInstantiationResult).catch(readyPromiseReject);
   return {}; // no exports yet; we'll fill them in later
 }
 
@@ -1063,7 +1092,7 @@ function dbg(...args) {
       abort('native code called abort()');
     };
 
-  var tupleRegistrations = {
+  var structRegistrations = {
   };
   
   var runDestructors = (destructors) => {
@@ -1127,68 +1156,6 @@ function dbg(...args) {
         onComplete(typeConverters);
       }
     };
-  var __embind_finalize_value_array = (rawTupleType) => {
-      var reg = tupleRegistrations[rawTupleType];
-      delete tupleRegistrations[rawTupleType];
-      var elements = reg.elements;
-      var elementsLength = elements.length;
-      var elementTypes = elements.map((elt) => elt.getterReturnType).
-                  concat(elements.map((elt) => elt.setterArgumentType));
-  
-      var rawConstructor = reg.rawConstructor;
-      var rawDestructor = reg.rawDestructor;
-  
-      whenDependentTypesAreResolved([rawTupleType], elementTypes, (elementTypes) => {
-        elements.forEach((elt, i) => {
-          var getterReturnType = elementTypes[i];
-          var getter = elt.getter;
-          var getterContext = elt.getterContext;
-          var setterArgumentType = elementTypes[i + elementsLength];
-          var setter = elt.setter;
-          var setterContext = elt.setterContext;
-          elt.read = (ptr) => getterReturnType['fromWireType'](getter(getterContext, ptr));
-          elt.write = (ptr, o) => {
-            var destructors = [];
-            setter(setterContext, ptr, setterArgumentType['toWireType'](destructors, o));
-            runDestructors(destructors);
-          };
-        });
-  
-        return [{
-          name: reg.name,
-          'fromWireType': (ptr) => {
-            var rv = new Array(elementsLength);
-            for (var i = 0; i < elementsLength; ++i) {
-              rv[i] = elements[i].read(ptr);
-            }
-            rawDestructor(ptr);
-            return rv;
-          },
-          'toWireType': (destructors, o) => {
-            if (elementsLength !== o.length) {
-              throw new TypeError(`Incorrect number of tuple elements for ${reg.name}: expected=${elementsLength}, actual=${o.length}`);
-            }
-            var ptr = rawConstructor();
-            for (var i = 0; i < elementsLength; ++i) {
-              elements[i].write(ptr, o[i]);
-            }
-            if (destructors !== null) {
-              destructors.push(rawDestructor, ptr);
-            }
-            return ptr;
-          },
-          argPackAdvance: GenericWireTypeSize,
-          'readValueFromPointer': readPointer,
-          destructorFunction: rawDestructor,
-        }];
-      });
-    };
-
-  var structRegistrations = {
-  };
-  
-  
-  
   var __embind_finalize_value_object = (structType) => {
       var reg = structRegistrations[structType];
       delete structRegistrations[structType];
@@ -3177,46 +3144,6 @@ function dbg(...args) {
 
   
   
-  var __embind_register_value_array = (
-      rawType,
-      name,
-      constructorSignature,
-      rawConstructor,
-      destructorSignature,
-      rawDestructor
-    ) => {
-      tupleRegistrations[rawType] = {
-        name: readLatin1String(name),
-        rawConstructor: embind__requireFunction(constructorSignature, rawConstructor),
-        rawDestructor: embind__requireFunction(destructorSignature, rawDestructor),
-        elements: [],
-      };
-    };
-
-  
-  var __embind_register_value_array_element = (
-      rawTupleType,
-      getterReturnType,
-      getterSignature,
-      getter,
-      getterContext,
-      setterArgumentType,
-      setterSignature,
-      setter,
-      setterContext
-    ) => {
-      tupleRegistrations[rawTupleType].elements.push({
-        getterReturnType,
-        getter: embind__requireFunction(getterSignature, getter),
-        getterContext,
-        setterArgumentType,
-        setter: embind__requireFunction(setterSignature, setter),
-        setterContext,
-      });
-    };
-
-  
-  
   var __embind_register_value_object = (
       rawType,
       name,
@@ -3272,23 +3199,6 @@ function dbg(...args) {
     };
 
   var __emscripten_memcpy_js = (dest, src, num) => HEAPU8.copyWithin(dest, src, src + num);
-
-
-  
-  
-  
-  var requireRegisteredType = (rawType, humanName) => {
-      var impl = registeredTypes[rawType];
-      if (undefined === impl) {
-        throwBindingError(`${humanName} has unknown type ${getTypeName(rawType)}`);
-      }
-      return impl;
-    };
-  var __emval_take_value = (type, arg) => {
-      type = requireRegisteredType(type, '_emval_take_value');
-      var v = type['readValueFromPointer'](arg);
-      return Emval.toHandle(v);
-    };
 
   var getHeapMax = () =>
       // Stay one Wasm page short of 4GB: while e.g. Chrome is able to allocate
@@ -3510,6 +3420,15 @@ function dbg(...args) {
       ret = onDone(ret);
       return ret;
     };
+
+  
+  
+  var stringToNewUTF8 = (str) => {
+      var size = lengthBytesUTF8(str) + 1;
+      var ret = _malloc(size);
+      if (ret) stringToUTF8(str, ret, size);
+      return ret;
+    };
 InternalError = Module['InternalError'] = class InternalError extends Error { constructor(message) { super(message); this.name = 'InternalError'; }};
 embind_init_charCodes();
 BindingError = Module['BindingError'] = class BindingError extends Error { constructor(message) { super(message); this.name = 'BindingError'; }};
@@ -3526,8 +3445,6 @@ var wasmImports = {
   __assert_fail: ___assert_fail,
   /** @export */
   _abort_js: __abort_js,
-  /** @export */
-  _embind_finalize_value_array: __embind_finalize_value_array,
   /** @export */
   _embind_finalize_value_object: __embind_finalize_value_object,
   /** @export */
@@ -3555,10 +3472,6 @@ var wasmImports = {
   /** @export */
   _embind_register_std_wstring: __embind_register_std_wstring,
   /** @export */
-  _embind_register_value_array: __embind_register_value_array,
-  /** @export */
-  _embind_register_value_array_element: __embind_register_value_array_element,
-  /** @export */
   _embind_register_value_object: __embind_register_value_object,
   /** @export */
   _embind_register_value_object_field: __embind_register_value_object_field,
@@ -3566,10 +3479,6 @@ var wasmImports = {
   _embind_register_void: __embind_register_void,
   /** @export */
   _emscripten_memcpy_js: __emscripten_memcpy_js,
-  /** @export */
-  _emval_decref: __emval_decref,
-  /** @export */
-  _emval_take_value: __emval_take_value,
   /** @export */
   emscripten_resize_heap: _emscripten_resize_heap,
   /** @export */
@@ -3584,9 +3493,9 @@ var wasmImports = {
 var wasmExports = createWasm();
 var ___wasm_call_ctors = createExportWrapper('__wasm_call_ctors', 0);
 var _free = createExportWrapper('free', 1);
+var _malloc = Module['_malloc'] = createExportWrapper('malloc', 1);
 var ___getTypeName = createExportWrapper('__getTypeName', 1);
 var _fflush = createExportWrapper('fflush', 1);
-var _malloc = Module['_malloc'] = createExportWrapper('malloc', 1);
 var _strerror = createExportWrapper('strerror', 1);
 var _emscripten_stack_init = () => (_emscripten_stack_init = wasmExports['emscripten_stack_init'])();
 var _emscripten_stack_get_free = () => (_emscripten_stack_get_free = wasmExports['emscripten_stack_get_free'])();
@@ -3604,6 +3513,7 @@ var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji', 
 // === Auto-generated postamble setup entry stuff ===
 
 Module['ccall'] = ccall;
+Module['stringToNewUTF8'] = stringToNewUTF8;
 var missingLibrarySymbols = [
   'writeI53ToI64',
   'writeI53ToI64Clamped',
@@ -3667,7 +3577,6 @@ var missingLibrarySymbols = [
   'intArrayToString',
   'AsciiToString',
   'stringToAscii',
-  'stringToNewUTF8',
   'registerKeyEventCallback',
   'maybeCStringToJsString',
   'findEventTarget',
@@ -3776,6 +3685,7 @@ var missingLibrarySymbols = [
   'demangle',
   'stackTrace',
   'getFunctionArgsName',
+  'requireRegisteredType',
   'createJsInvokerSignature',
   'registerInheritedInstance',
   'unregisterInheritedInstance',
@@ -3912,7 +3822,6 @@ var unexportedSymbols = [
   'getTypeName',
   'getFunctionName',
   'heap32VectorToArray',
-  'requireRegisteredType',
   'usesDestructorStack',
   'checkArgCount',
   'getRequiredArgCount',
@@ -4028,6 +3937,7 @@ function run() {
 
     initRuntime();
 
+    readyPromiseResolve(Module);
     Module['onRuntimeInitialized']?.();
 
     assert(!Module['_main'], 'compiled without a main, but one is present. if you added it from JS, use Module["onRuntimeInitialized"]');
@@ -4088,3 +3998,39 @@ run();
 
 // end include: postamble.js
 
+// include: postamble_modularize.js
+// In MODULARIZE mode we wrap the generated code in a factory function
+// and return either the Module itself, or a promise of the module.
+//
+// We assign to the `moduleRtn` global here and configure closure to see
+// this as and extern so it won't get minified.
+
+moduleRtn = readyPromise;
+
+// Assertion for attempting to access module properties on the incoming
+// moduleArg.  In the past we used this object as the prototype of the module
+// and assigned properties to it, but now we return a distinct object.  This
+// keeps the instance private until it is ready (i.e the promise has been
+// resolved).
+for (const prop of Object.keys(Module)) {
+  if (!(prop in moduleArg)) {
+    Object.defineProperty(moduleArg, prop, {
+      configurable: true,
+      get() {
+        abort(`Access to module property ('${prop}') is no longer possible via the module constructor argument; Instead, use the result of the module constructor.`)
+      }
+    });
+  }
+}
+// end include: postamble_modularize.js
+
+
+
+  return moduleRtn;
+}
+);
+})();
+if (typeof exports === 'object' && typeof module === 'object')
+  module.exports = LibLTC;
+else if (typeof define === 'function' && define['amd'])
+  define([], () => LibLTC);

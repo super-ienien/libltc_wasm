@@ -4,8 +4,10 @@
 #include <emscripten/val.h>
 #include "encoder.h"
 #include "ltc_frame_js.h"
+#include "timecode_js.h"
 #include <cstdint>
 #include "ltc.h"
+#include "common_js.h"
 
 using namespace emscripten;
 
@@ -15,7 +17,7 @@ class LTCEncoderJS {
     SMPTETimecode tc;
 
     public:
-    LTCEncoderJS(double sample_rate, double fps, LTC_TV_STANDARD standard, int flags );
+    LTCEncoderJS(double sample_rate, double fps, int standard, int flags = 0);
     ~LTCEncoderJS();
     int decrementTimecode();
     int incrementTimecode();
@@ -25,18 +27,17 @@ class LTCEncoderJS {
     int endEncode();
     double getFilter();
     void setFilter(double rise_time);
-//     LTCFrameJS getFrame();
-//     LTCFrameJS setFrame(LTCFrameJS frame);
-    SMPTETimecode getTimecode();
-    void setTimecode(SMPTETimecode timecode);
+    SMPTETimecodeJS* getTimecode();
+    void setTimecode(SMPTETimecodeJS timecode);
     double getVolume();
     int setVolume(double dBFS);
-    int reinit(double sample_rate, double fps, LTC_TV_STANDARD standard, int flags );
+    int reinit(double sample_rate, double fps, int standard, int flags = 0);
     void reset();
     void setUserBits(unsigned long data);
     int getBufferSize();
     int setBufferSize(double sample_rate, double fps);
-    val getBuffer(bool flush);
+    SoundSampleJS getBuffer();
+    void flushBuffer();
 };
 
 #endif
