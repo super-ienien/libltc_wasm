@@ -1,6 +1,7 @@
 #include <emscripten/bind.h>
 #include "ltc_frame_js.h"
 #include "ltc.h"
+#include <iostream>
 
 using namespace emscripten;
 
@@ -43,6 +44,7 @@ void LTCFrameJS::fill(LTCFrameExt* frame) {
     this->volume = frame->volume;
     this->reverse = frame->reverse;
     this->is_valid = true;
+    std::cout << frame->ltc.hours_tens << frame->ltc.hours_units << ':' << frame->ltc.mins_tens << frame->ltc.mins_units << ':' << frame->ltc.secs_tens << frame->ltc.secs_units << ':' << frame->ltc.frame_tens << frame->ltc.frame_units << std::endl;
 };
 
 EMSCRIPTEN_BINDINGS(ltc_frame_js) {
